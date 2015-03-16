@@ -1,0 +1,229 @@
+#pragma once
+#ifndef _GRAPH_
+#define _GRAPH_
+
+//////////////////////////////////////////////////////////////////////
+// The beginnings of a STL style graph class
+
+//#include <string>
+#include <vector>
+//#include <algorithm>
+//#include <iostream>
+//#include <sstream>
+#include <deque>
+//#include <stack>
+//#include <cmath>
+//#include <cstdio>
+//#include <cctype>
+//#include <cstdlib>
+//#include <climits>
+//#include <set>
+//#include <map>
+//#include <numeric>
+//#include <ctime>
+#include <functional>
+//#include <queue>
+//#include <iterator>
+//#include <locale>
+
+namespace std {
+
+template <class T> class graph
+{
+private:
+	class edgenode
+	{
+	public:
+		int _y;
+		edgenode* _next;
+
+		~edgenode() { delete _next; }
+	};
+
+	// core user data
+	vector<T> _vertex;
+
+	// core graph data
+	vector<edgenode*> _edges;
+	vector<int> _degree;
+	int _totaledges;
+	bool _directed;
+
+	// traversal data
+	vector<bool> _processed;
+	vector<bool> _discovered;
+	vector<int> _parent;
+
+public:
+	graph(bool directed)
+	{
+		_directed = directed;
+		_totaledges = 0;
+	}
+
+	~graph()
+	{
+		for (int i = 0; i < _edges.size(); i++)
+			delete _edges[i];
+	}
+
+	int append_vertex(T value)
+	{
+		_vertex.push_back(value);
+		_edges.push_back(nullptr);
+		_degree.push_back(0);
+		return _vertex.size() - 1;
+	}
+
+	void insert_edge(int x, int y, bool directed)
+	{
+		if (x >= _vertex.size() || y >= _vertex.size() || x < 0 || y < 0) return;
+
+		edgenode* p = new edgenode();
+		p->_y = y;
+		p->_next = _edges[x];
+		_edges[x] = p;
+		_degree[x] += 1;
+
+		if (!directed)
+		{
+			insert_edge(y, x, true);
+		}
+		else
+		{
+			_totaledges++;
+		}
+	}
+
+	void print_graph()
+	{
+		for (int i = 0; i < _edges.size(); i++)
+		{
+			cout << _vertex[i] << " -> " << i << ": ";
+			edgenode* p = _edges[i];
+			while(p != nullptr)
+			{
+				cout << p->_y;
+				p = p->_next;
+
+				if (p != nullptr)
+					cout << ", ";
+			}
+			cout << endl;
+		}
+	}
+
+	void init_search()
+	{
+		_processed.assign(_vertex.size(), false);
+		_discovered.assign(_vertex.size(), false);
+		_parent.assign(_vertex.size(), -1);
+	}
+
+	void bfs(int start, function<void (int)> process_vertex_early, function<void (int)> process_vertex_late, function<void (int, int)> process_edge)
+	{
+		if (start < 0 || start >= _vertex.size()) return;
+
+		deque<int> q;
+		int _current;
+		int _successor;
+		edgenode* p;
+
+		q.push_back(start);
+		_discovered[start] = true;
+		while(!q.empty())
+		{
+			_current = q.front();
+			q.pop_front();
+
+			if (process_vertex_early)
+				process_vertex_early(_current);
+
+			_processed[_current] = true;
+
+			p = _edges[_current];
+			while(p != nullptr)
+			{
+				_successor = p->_y;
+				if (_processed[_successor] == false || _directed)
+					if (process_edge)
+						process_edge(_current, _successor);
+				if (_discovered[_successor] == false)
+				{
+					q.push_back(_successor);
+					_discovered[_successor] = true;
+					_parent[_successor] = _current;
+				}
+				p = p->_next;
+			}
+
+			if (process_vertex_late)
+				process_vertex_late(_current);
+		}
+	}
+
+	void recurse_path(vector<int>& path, int start, int end)
+	{
+		if (start == end || end == -1)
+			path.push_back(start);
+		else
+		{
+			recurse_path(path, start, _parent[end]);
+			path.push_back(end);
+		}
+	}
+
+	vector<int> find_path(int start, int end)
+	{
+		init_search();
+		bfs(start, nullptr, nullptr, nullptr);
+		vector<int> path;
+		recurse_path(path, start, end);
+		return path;
+	}
+
+	vector<vector<int>> connected_components()
+	{
+		vector<vector<int>> result;
+
+		init_search();
+		for(int i = 0; i < _edges.size(); i++)
+		{
+			if (_discovered[i] == false)
+			{
+				vector<int> component;
+				bfs(i, [&component](int x) {
+					component.push_back(x);
+				}, nullptr, nullptr);
+				result.push_back(component);
+			}
+		}
+		return result;
+	}
+
+	bool two_color()
+	{
+		vector<int> color;
+		color.assign(_vertex.size(), 0);
+		bool bipartite = true;
+		init_search();
+		for(int i = 0; i < _edges.size(); i++)
+		{
+			if (_discovered[i] == false)
+			{
+				color[i] = 1;
+				bfs(i, nullptr, nullptr, [&color, &bipartite](int x, int y) {
+					if (color[x] == color[y])
+						bipartite = false;
+
+					color[y] = color[x] * -1;
+				});
+			}
+		}
+		return bipartite;
+	}
+};
+
+}
+
+#endif
